@@ -1,0 +1,413 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  TECHNICIAN
+  ACCOUNTANT
+  CLIENT
+}
+
+enum SiteType {
+  MAGASIN
+  ENTREPOT
+  BUREAU
+  USINE
+  AUTRE
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum InterventionStatus {
+  PLANNED
+  ON_SITE
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  CARD
+  OTHER
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  fullName      String
+  phone         String?
+  role          Role           @default(TECHNICIAN)
+  active        Boolean        @default(true)
+  avatar        String?
+  clientId      String?
+  client        Client?        @relation(fields: [clientId], references: [id])
+  tasks         Task[]         @relation("TechnicianTasks")
+  interventions Intervention[] @relation("TechnicianInterventions")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Client {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         String
+  ice          String?
+  rc           String?
+  ifNumber     String?
+  cnss         String?
+  patente      String?
+  address      String?
+  city         String?
+  postalCode   String?
+  country      String         @default("Maroc")
+  phone        String?
+  email        String?
+  contactName  String?
+  notes        String?
+  sites        Site[]
+  devis        Devis[]
+  bonsCommande BonCommande[]
+  factures     Facture[]
+  users        User[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Site {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         String
+  type         SiteType       @default(MAGASIN)
+  address      String?
+  city         String?
+  region       String?
+  latitude     Float?
+  longitude    Float?
+  contactName  String?
+  contactPhone String?
+  clientId     String
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  interventions Intervention[]
+  tasks        Task[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model BonCommande {
+  id        String         @id @default(cuid())
+  number    String         @unique
+  clientId  String
+  client    Client         @relation(fields: [clientId], references: [id])
+  date      DateTime       @default(now())
+  status    DocumentStatus @default(DRAFT)
+  totalHT   Float          @default(0)
+  tvaRate   Float          @default(20)
+  totalTTC  Float          @default(0)
+  notes     String?
+  lines     BCLine[]
+  devisId   String?
+  devis     Devis?         @relation(fields: [devisId], references: [id])
+  bls       BonLivraison[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model BCLine {
+  id          String      @id @default(cuid())
+  bcId        String
+  bc          BonCommande @relation(fields: [bcId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float       @default(1)
+  unitPrice   Float       @default(0)
+  total       Float       @default(0)
+}
+
+model Devis {
+  id         String         @id @default(cuid())
+  number     String         @unique
+  clientId   String
+  client     Client         @relation(fields: [clientId], references: [id])
+  date       DateTime       @default(now())
+  validUntil DateTime?
+  status     DocumentStatus @default(DRAFT)
+  totalHT    Float          @default(0)
+  tvaRate    Float          @default(20)
+  totalTTC   Float          @default(0)
+  notes      String?
+  lines      DevisLine[]
+  bcs        BonCommande[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+model DevisLine {
+  id          String @id @default(cuid())
+  devisId     String
+  devis       Devis  @relation(fields: [devisId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float  @default(1)
+  unitPrice   Float  @default(0)
+  total       Float  @default(0)
+}
+
+model BonLivraison {
+  id          String         @id @default(cuid())
+  number      String         @unique
+  bcId        String?
+  bc          BonCommande?   @relation(fields: [bcId], references: [id])
+  date        DateTime       @default(now())
+  status      DocumentStatus @default(DRAFT)
+  deliveredBy String?
+  receivedBy  String?
+  notes       String?
+  lines       BLLine[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model BLLine {
+  id          String       @id @default(cuid())
+  blId        String
+  bl          BonLivraison @relation(fields: [blId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float        @default(1)
+  unit        String       @default("U")
+}
+
+model Travaux {
+  id          String         @id @default(cuid())
+  code        String         @unique
+  title       String
+  description String?
+  clientId    String
+  siteId      String?
+  status      DocumentStatus @default(DRAFT)
+  priority    Priority       @default(MEDIUM)
+  startDate   DateTime?
+  endDate     DateTime?
+  budget      Float?
+  tasks       Task[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Task {
+  id          String         @id @default(cuid())
+  code        String         @unique
+  title       String
+  description String?
+  status      TaskStatus     @default(TODO)
+  priority    Priority       @default(MEDIUM)
+  siteId      String?
+  site        Site?          @relation(fields: [siteId], references: [id])
+  travauxId   String?
+  travaux     Travaux?       @relation(fields: [travauxId], references: [id])
+  assigneeId  String?
+  assignee    User?          @relation("TechnicianTasks", fields: [assigneeId], references: [id])
+  dueDate     DateTime?
+  completedAt DateTime?
+  attachments Attachment[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Intervention {
+  id           String             @id @default(cuid())
+  code         String             @unique
+  title        String
+  description  String?
+  siteId       String
+  site         Site               @relation(fields: [siteId], references: [id])
+  technicianId String?
+  technician   User?              @relation("TechnicianInterventions", fields: [technicianId], references: [id])
+  status       InterventionStatus @default(PLANNED)
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  endedAt      DateTime?
+  duration     Int?
+  report       String?
+  photos       Attachment[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Attachment {
+  id             String        @id @default(cuid())
+  filename       String
+  originalName   String
+  mimetype       String
+  size           Int
+  url            String
+  taskId         String?
+  task           Task?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  interventionId String?
+  intervention   Intervention? @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+}
+
+model Fournisseur {
+  id             String            @id @default(cuid())
+  code           String            @unique
+  name           String
+  ice            String?
+  phone          String?
+  email          String?
+  address        String?
+  purchaseOrders PurchaseOrder[]
+  invoices       SupplierInvoice[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model PurchaseOrder {
+  id            String         @id @default(cuid())
+  number        String         @unique
+  fournisseurId String
+  fournisseur   Fournisseur    @relation(fields: [fournisseurId], references: [id])
+  date          DateTime       @default(now())
+  status        DocumentStatus @default(DRAFT)
+  totalHT       Float          @default(0)
+  tvaRate       Float          @default(20)
+  totalTTC      Float          @default(0)
+  notes         String?
+  lines         POLine[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model POLine {
+  id          String        @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float         @default(1)
+  unitPrice   Float         @default(0)
+  total       Float         @default(0)
+}
+
+model SupplierInvoice {
+  id            String        @id @default(cuid())
+  number        String        @unique
+  fournisseurId String
+  fournisseur   Fournisseur   @relation(fields: [fournisseurId], references: [id])
+  date          DateTime      @default(now())
+  dueDate       DateTime?
+  status        InvoiceStatus @default(DRAFT)
+  totalHT       Float         @default(0)
+  tvaRate       Float         @default(20)
+  totalTTC      Float         @default(0)
+  paidAmount    Float         @default(0)
+  payments      Payment[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Facture {
+  id         String        @id @default(cuid())
+  number     String        @unique
+  clientId   String
+  client     Client        @relation(fields: [clientId], references: [id])
+  bcId       String?
+  date       DateTime      @default(now())
+  dueDate    DateTime?
+  status     InvoiceStatus @default(DRAFT)
+  totalHT    Float         @default(0)
+  tvaRate    Float         @default(20)
+  totalTTC   Float         @default(0)
+  paidAmount Float         @default(0)
+  notes      String?
+  lines      FactureLine[]
+  payments   Payment[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model FactureLine {
+  id          String  @id @default(cuid())
+  factureId   String
+  facture     Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float   @default(0)
+  total       Float   @default(0)
+}
+
+model Payment {
+  id                String           @id @default(cuid())
+  number            String           @unique
+  amount            Float
+  method            PaymentMethod    @default(BANK_TRANSFER)
+  date              DateTime         @default(now())
+  reference         String?
+  notes             String?
+  factureId         String?
+  facture           Facture?         @relation(fields: [factureId], references: [id])
+  supplierInvoiceId String?
+  supplierInvoice   SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id])
+  createdAt         DateTime         @default(now())
+}
+
+model Expense {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  category    String
+  description String
+  amount      Float
+  date        DateTime      @default(now())
+  method      PaymentMethod @default(CASH)
+  reference   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+}

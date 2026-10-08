@@ -1,0 +1,58 @@
+﻿version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: amd-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: amd
+      POSTGRES_PASSWORD: amd
+      POSTGRES_DB: amd_presta
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amd"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: amd-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://amd:amd@postgres:5432/amd_presta?schema=public
+      JWT_SECRET: amd-presta-local-secret-change-me-1234567890abcdef
+      PORT: 4000
+      CORS_ORIGIN: http://localhost
+      NODE_ENV: production
+    volumes:
+      - uploads:/app/uploads
+    command: sh -c "npx prisma db push && node prisma/seed.js && npm start"
+
+  frontend:
+    build: ./frontend
+    container_name: amd-frontend
+    restart: always
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: amd-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  pgdata:
+  uploads:
